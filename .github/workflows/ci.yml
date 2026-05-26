@@ -1,0 +1,184 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install all skills (local)
+        run: |
+          npx skills@1.4.0 add . --yes
+          echo "✅ Successfully installed all skills locally"
+
+      - name: Verify skills installed
+        run: |
+          echo "📁 Checking installed skill files..."
+          ls -la .agents/skills/
+
+          for skill in .agents/skills/*/; do
+            skill_name=$(basename "$skill")
+            if [ -f "$skill/SKILL.md" ]; then
+              echo "✅ Found $skill_name/SKILL.md"
+            else
+              echo "❌ $skill_name/SKILL.md not found"
+              exit 1
+            fi
+          done
+          echo "✅ All skills successfully installed"
+
+  validate-plugin:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Validate marketplace.json
+        run: jq empty .claude-plugin/marketplace.json
+
+      - name: Validate plugin.json
+        run: jq empty .claude-plugin/plugin.json
+
+      - name: Cross-check plugin names
+        run: |
+          marketplace_name=$(jq -r '.plugins[0].name' .claude-plugin/marketplace.json)
+          plugin_name=$(jq -r '.name' .claude-plugin/plugin.json)
+          if [ "$marketplace_name" != "$plugin_name" ]; then
+            echo "❌ Name mismatch: marketplace.json has '$marketplace_name', plugin.json has '$plugin_name'"
+            exit 1
+          fi
+          echo "✅ Plugin name '$plugin_name' matches across manifests"
+
+      - name: Verify all skills are discoverable
+        run: |
+          echo "Checking that all skills have SKILL.md files..."
+          count=0
+          for skill in skills/*/; do
+            skill_name=$(basename "$skill")
+            if [ -f "$skill/SKILL.md" ]; then
+              echo "✅ Found $skill_name/SKILL.md"
+              count=$((count + 1))
+            else
+              echo "❌ $skill_name/SKILL.md not found"
+              exit 1
+            fi
+          done
+          echo "✅ All $count skills discoverable by Claude Code plugin"
+
+  version-check:
+    runs-on: ubuntu-latest
+    # Run only on pull requests so we can diff against the base branch
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Require plugin version bump when plugin content changes
+        run: |
+          base="origin/${{ github.base_ref }}"
+          changed=$(git diff --name-only "$base"...HEAD -- \
+            'skills/**' \
+            'commands/**' \
+            'agents/**' \
+            'hooks/**' \
+            '.claude-plugin/plugin.json')
+          if [ -z "$changed" ]; then
+            echo "✅ No plugin content changed; plugin version bump not required."
+            exit 0
+          fi
+          head_v=$(jq -r .version .claude-plugin/plugin.json)
+          base_v=$(git show "$base":.claude-plugin/plugin.json | jq -r .version)
+          if [[ ! "$head_v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ plugin.json#version is not semver: '$head_v'"
+            exit 1
+          fi
+          if [ "$head_v" = "$base_v" ] || ! printf '%s\n%s\n' "$base_v" "$head_v" | sort -V -C; then
+            echo "❌ Plugin content changed but .claude-plugin/plugin.json#version did not strictly increase ($base_v → $head_v)."
+            echo "Bump it (drives /plugin update behavior). Changed paths:"
+            echo "$changed"
+            exit 1
+          fi
+          echo "✅ plugin.json version bumped: $base_v → $head_v"
+
+      - name: Require skill version bump when skill content changes
+        if: always()
+        run: |
+          base="origin/${{ github.base_ref }}"
+          changed_skills=$(git diff --name-only "$base"...HEAD -- 'skills/*/**' \
+            | awk -F/ 'NF>=3 {print $2}' | sort -u)
+          if [ -z "$changed_skills" ]; then
+            echo "✅ No skill content changed; per-skill version bump not required."
+            exit 0
+          fi
+          extract_version() {
+            awk '/^---$/{c++; next} c==1' | yq -r '.metadata.version // ""'
+          }
+          fail=0
+          for skill in $changed_skills; do
+            head_file="skills/$skill/SKILL.md"
+            if [ ! -f "$head_file" ]; then
+              echo "ℹ️  $skill: SKILL.md missing on HEAD (skill deleted); skipping."
+              continue
+            fi
+            base_content=$(git show "$base:$head_file" 2>/dev/null || true)
+            if [ -z "$base_content" ]; then
+              echo "ℹ️  $skill: new skill on this branch; skipping bump check."
+              continue
+            fi
+            head_v=$(extract_version < "$head_file")
+            base_v=$(printf '%s\n' "$base_content" | extract_version)
+            if [[ ! "$head_v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "❌ $skill: SKILL.md metadata.version is not semver: '$head_v'"
+              fail=1
+              continue
+            fi
+            if [ "$head_v" = "$base_v" ] || ! printf '%s\n%s\n' "$base_v" "$head_v" | sort -V -C; then
+              echo "❌ $skill: content changed but SKILL.md metadata.version did not strictly increase ($base_v → $head_v). Bump the patch version for bug fixes."
+              fail=1
+              continue
+            fi
+            echo "✅ $skill: $base_v → $head_v"
+          done
+          exit $fail
+
+  test-remote:
+    runs-on: ubuntu-latest
+    # Run only on push to main
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Install all skills (remote)
+        run: |
+          npx skills add modern-admin/skills --yes
+          echo "✅ Successfully installed all skills from GitHub"
+
+      - name: Verify skills installed
+        run: |
+          echo "📁 Checking installed skill files..."
+          ls -la .agents/skills/
+
+          for skill in .agents/skills/*/; do
+            skill_name=$(basename "$skill")
+            if [ -f "$skill/SKILL.md" ]; then
+              echo "✅ Found $skill_name/SKILL.md"
+            else
+              echo "❌ $skill_name/SKILL.md not found"
+              exit 1
+            fi
+          done
+          echo "✅ All skills successfully installed"

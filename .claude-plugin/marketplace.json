@@ -1,0 +1,17 @@
+{
+  "name": "modern-admin-marketplace",
+  "owner": {
+    "name": "Modern Admin",
+    "email": "support@modernadminpro.com"
+  },
+  "metadata": {
+    "description": "Bundled plugins for working with the Modern Admin framework",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "modern-admin-skills",
+      "source": "./"
+    }
+  ]
+}
