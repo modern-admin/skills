@@ -1,0 +1,23 @@
+{
+  "name": "modern-admin-skills",
+  "description": "Agent skills for AI coding agents working with the Modern Admin framework",
+  "version": "2.0.0",
+  "author": {
+    "name": "Modern Admin",
+    "email": "support@modernadminpro.com"
+  },
+  "homepage": "https://github.com/modern-admin/skills",
+  "repository": "https://github.com/modern-admin/skills",
+  "license": "MIT",
+  "keywords": [
+    "modern-admin",
+    "admin-panel",
+    "nestjs",
+    "prisma",
+    "better-auth",
+    "react",
+    "claude-code",
+    "ai-skills",
+    "agent-skills"
+  ]
+}
