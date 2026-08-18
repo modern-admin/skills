@@ -25,8 +25,8 @@ Modern Admin has two plugin scopes:
 
 - **Local features** (`FeatureFn`, attached per resource via
   `options.features: []`) — run first, transform a single resource.
-- **Global plugins** (`GlobalPlugin`, attached to `ModernAdmin.forRoot`
-  via `plugins: []`) — run on every resource, may filter via
+- **Global plugins** (`GlobalPlugin`, attached to `ModernAdminModule.forRoot`
+  or `new ModernAdmin({ plugins: [] })`) — run on every resource, may filter via
   `include`/`exclude`.
 
 Built-in catalog:
@@ -42,10 +42,20 @@ Built-in catalog:
 | `@modern-admin-pro/feature-ai-fill` (Pro)  | per-resource   | Add an AI "fill from photo / URL / text" button to the new/edit form. Configure model in env. |
 | `@modern-admin/feature-json-by-key` | local       | Single JSON column whose schema branches on a sibling field's value (e.g. `type === 'image' ⇒ {url,alt}`). |
 
-Auto-installed by the scaffold: `feature-upload`, `feature-history`.
-The Pro tier (`@modern-admin-pro/feature-logging|webhooks|ai-fill`)
-ships separately under a commercial license — see
-[modernadminpro.com](https://modernadminpro.com).
+The base scaffold intentionally installs no feature package. Add only the
+features used by registered resources; its initial resource list is empty.
+
+All open-core `@modern-admin/*` packages (including every non-Pro feature
+above) are public on npm and install with **no registry token**. Only the
+Pro tier (`@modern-admin-pro/feature-logging|webhooks|ai-fill`) ships
+separately under a commercial license, on a **restricted registry that
+requires a token** (`MODERN_ADMIN_TOKEN`/`NPM_TOKEN`) — see
+[modernadminpro.com](https://modernadminpro.com). If a task uses only
+open-core features, never ask for or block on a token.
+
+Pro packages additionally require the corresponding explicit
+`featureFlags` entry in `ModernAdminModule.forRoot`; a valid license alone
+does not activate them.
 
 Decision tree for "should I write a feature?": **don't**, unless the
 transform applies to ≥3 resources. For one-off needs, hooks +

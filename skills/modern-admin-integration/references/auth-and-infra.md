@@ -1,5 +1,20 @@
 # Auth — what to wire and what NOT to wire
 
+Modern Admin targets Better Auth 1.7+. Its account identity is the unique pair
+`(issuer, accountId)`: `issuer` and the provider-side `accountId` are required,
+and `userId` remains an indexed foreign key. Credential rows must use the full
+tuple `providerId: 'credential'`, `issuer: 'local:credential'`, and
+`accountId: user.id`. Checking `providerId` alone is not sufficient.
+
+For a populated Better Auth 1.6 database, stop authentication writes before
+deploying 1.7. Use the transactional migration shipped by
+`@modern-admin/system-prisma` (or its `system-drizzle` sibling): it adds
+`issuer` nullable, inventories providers, backfills only explicit verified
+mappings, checks projected `(issuer, accountId)` collisions, then applies the
+non-null column and unique constraint. Unknown providers and collisions must
+abort; never infer issuers from email/profile/request data or merge/delete
+users automatically.
+
 `@modern-admin/auth-better-auth` is the only supported auth provider.
 Better Auth is already mounted by the scaffold. The agent's job:
 
@@ -212,9 +227,8 @@ login — the SPA points at the default while the server moved.
 Auth's `admin()` plugin is mounted. Without it the session payload
 has no `role`, and any of the following silently breaks:
 
-- `rolesResourceId` permission gate — the role lookup gets `undefined`
-  and the gate falls through to the fail-open branch (or denies,
-  depending on action defaults).
+- `rolesResourceId` permission gate — a session with no role is rejected
+  by the default-deny anonymous gate before action execution.
 - Per-action `isAccessible: ({currentAdmin}) => currentAdmin?.role === 'admin'`
   predicates — always evaluate to `false`, returning **403 Forbidden**
   on every protected action, even for users whose `ma_user.role`

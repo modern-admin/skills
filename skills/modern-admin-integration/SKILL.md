@@ -9,13 +9,13 @@ description: >
   troubleshooting auth/SPA 404s. Triggers on tasks that mention
   `@AdminResource`, `AdminController`, `adminSource`, `BetterAuthProvider`,
   `ModernAdminStaticUiModule`, `setupPrismaSystem`, `MaRole`,
-  `rolesResourceId`, the `ma_*` schema fragment, or scaffolding
-  `bun create @modern-admin`.
+  `rolesResourceId`, the `ma_*` schema fragment, custom UI components,
+  `modern-admin setup-ui`, or scaffolding `bun create @modern-admin`.
 license: MIT
 compatibility: Modern Admin (@modern-admin/*) 0.x
 metadata:
   author: modern-admin
-  version: "2.0.0"
+  version: "2.1.0"
 allowed-tools: Bash Read Write Edit Glob Grep
 ---
 
@@ -33,11 +33,10 @@ rules so you don't re-discover them.
    `@default(uuid(7))` — generate in app code.
 3. **Latest stable versions.** Adapt code to new APIs; never pin older to dodge
    breaking changes.
-4. **i18n everywhere.** No hardcoded user-visible strings. Add keys to
-   `packages/i18n/src/locales/en.ts` AND mirror to all 8 other locales
-   (`de`/`es`/`fr`/`it`/`ja`/`pl`/`pt-BR`/`ru`). UI components stay
-   i18n-unaware (`labels?: {...}` prop); `packages/react` is the translation
-   boundary. See `references/conventions.md`.
+4. **i18n everywhere.** No hardcoded user-visible strings. Framework changes
+   add keys to all 9 locale files and keep `packages/ui` i18n-unaware;
+   host-owned custom components use `useI18n()` or a project-owned locale map.
+   See `references/conventions.md`.
 5. **Mobile-first.** Verify every new UI at ≤375px viewport.
 6. **Auto-discovery beats config.** Override only what diverges.
 
@@ -52,12 +51,25 @@ against a replica instead).
 ## Deployment model — default to standalone
 
 Recommended layout: separate NestJS 11 service against the same Postgres.
-Scaffold with `MODERN_ADMIN_TOKEN=ghp_xxx bun create @modern-admin admin-service`.
+Scaffold with `bun create @modern-admin admin-service` — **no registry token
+required**. The scaffolder and all open-core `@modern-admin/*` packages are
+public on npm, so a missing `MODERN_ADMIN_TOKEN`/`NPM_TOKEN` is never a
+blocker. A token is only needed for **Pro** packages (`@modern-admin-pro/*`:
+webhooks, AI-fill, logging) on their restricted registry.
 Mount behind `/admin` of the main domain via reverse proxy. See
 `references/deployment.md` for the existing-Prisma reuse rules (one schema,
 one client; never add a second `generator`) and the **fourteen** `Ma*` models
 that must be copied verbatim — `setupPrismaSystem` fails at boot if any are
 missing.
+
+## Custom UI — scaffold the standard flow
+
+When a host needs custom property/action components, run
+`bunx @modern-admin/create setup-ui` from the host package root instead of
+hand-copying the Vite shell. Pass `--api-proxy` when the backend is not on port
+3001. The command creates `ui/`, adds host dependencies/scripts, and sets
+`ModernAdminStaticUiModule.webPackage` without overwriting existing UI files.
+See `references/custom-ui.md`.
 
 ## The three pieces of every resource
 
@@ -87,7 +99,7 @@ bypass. See `references/permissions.md` for the role-matrix recipe, true-
 invariant `Promise<never>` stubs, base-class signature matching for
 overrides (avoid `TS2416`), and the `guard:` vs `isAccessible:` distinction.
 
-## Auth wiring — the five must-knows
+## Auth wiring — the six must-knows
 
 1. **`admin()` plugin is MANDATORY** when using `rolesResourceId`. Without
    it `session.user.role` is `undefined` and every role-gated action returns
@@ -103,6 +115,11 @@ overrides (avoid `TS2416`), and the `guard:` vs `isAccessible:` distinction.
 5. **Keep `app.use(<basePath>, ...)`, `betterAuth({ basePath })`, and
    `runtimeConfig.authBasePath` in lockstep.** A mismatch surfaces as
    `POST /api/auth/sign-in/email 404` on login.
+6. **Better Auth 1.7 account identity is `(issuer, accountId)`.** Every
+   `MaAccount` schema needs required `issuer`, compound uniqueness on that
+   pair, and the `userId` index. Credentials are exactly
+   `providerId: 'credential'`, `issuer: 'local:credential'`,
+   `accountId: user.id`. Never reuse a 1.6 schema with 1.7.
 
 Full details + code examples: `references/auth-and-infra.md`.
 
@@ -118,8 +135,8 @@ Full details + code examples: `references/auth-and-infra.md`.
   invariants, sealed-invariant property `isAccessible`, `guard:` vs permissions.
 - `./references/actions-and-plugins.md` — §7 built-in actions and when to
   override, §8 plugin/feature selection guide, §10 hooks vs actions vs handlers.
-- `./references/custom-ui.md` — §9 when to write a custom component, the
-  three-step workflow, `@modern-admin/ui` primitives, Tailwind 4 `border` rule.
+- `./references/custom-ui.md` — §9 `modern-admin setup-ui`, component
+  registration, `@modern-admin/ui` primitives, i18n, Tailwind 4 rules.
 - `./references/auth-and-infra.md` — §11 a–f: `BetterAuthProvider` wiring,
   `RedisCacheProvider`, `ModernAdminStaticUiModule`, `createBetterAuthMiddleware`,
   `admin()` plugin requirement, `BigInt` serialisation.
@@ -145,7 +162,7 @@ Full details + code examples: `references/auth-and-infra.md`.
 - `apps/_shared/src/admin/posts/posts.controller.ts` — hooks + record + bulk
   actions.
 - `apps/_shared/src/admin/customers/customers.controller.ts` —
-  `passwordsFeature` + `aiFillFeature` + custom action.
+  `passwordsFeature` + hooks + custom record action.
 - `apps/_shared/src/admin/source-registry.ts` — source registry.
 - `apps/api-prisma/src/admin-sources.ts` — logical-id mapping + relation
   field rewriting.

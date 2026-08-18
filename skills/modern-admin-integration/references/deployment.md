@@ -9,8 +9,21 @@ smaller attack surface, language-agnostic main backend.
 Scaffold with:
 
 ```sh
-MODERN_ADMIN_TOKEN=ghp_xxx bun create @modern-admin admin-service
+bun create @modern-admin admin-service
 ```
+
+**No registry token is required.** The scaffolder (`@modern-admin/create`)
+and every open-core `@modern-admin/*` package are published publicly on npm
+(`registry.npmjs.org`), so `bun create` / `bun install` work with no
+`.npmrc`, no auth, no `MODERN_ADMIN_TOKEN`. A missing token is **never** a
+blocker for setting up or configuring an admin panel — do not stop to ask
+for one.
+
+A token is only needed for **Pro** packages (`@modern-admin-pro/*` —
+webhooks, AI-fill, audit logging), which live on a restricted registry and
+require a commercial license. Everything in this skill targets open-core and
+needs no token. See `actions-and-plugins.md` §8 for Pro plugins — reach for
+that only if the task explicitly pulls in a `@modern-admin-pro/*` dependency.
 
 This produces a NestJS 11 app with:
 
@@ -109,6 +122,14 @@ modern-admin repo — that file is the source of truth. After merging,
 run `bun run prisma:generate` and create one migration named
 `add_modern_admin_system_tables`; commit the migration together with
 the schema change.
+
+Better Auth 1.7 does **not** add a fifteenth model, so the required count stays
+fourteen. It changes `MaAccount`: add required `issuer`, keep `accountId`
+required, add `@@unique([issuer, accountId])`, and retain `@@index([userId])`
+plus the user relation. A populated 1.6 database needs the staged,
+transactional issuer migration documented in `auth-and-infra.md`; do not make
+the column non-null before inventory, explicit provider mapping, and collision
+checks complete.
 
 ### Verification step (do this before declaring scaffold done)
 

@@ -155,7 +155,7 @@ After integrating Modern Admin into a host project, confirm:
   `apps/_shared/src/admin/posts/posts.controller.ts` (hooks + record
   + bulk actions) and
   `apps/_shared/src/admin/customers/customers.controller.ts`
-  (`passwordsFeature` + `aiFillFeature` + custom action).
+  (`passwordsFeature` + hooks + custom record action).
   Read these BEFORE writing a new resource.
 - **Canonical source registry** — `apps/_shared/src/admin/source-registry.ts`.
 - **Canonical Prisma source factory** —
@@ -165,7 +165,7 @@ After integrating Modern Admin into a host project, confirm:
 - Resource options schema — `packages/core/src/decorators/resource-options.ts`.
 - Property options schema — `packages/core/src/decorators/property-options.ts`.
 - Action options schema — `packages/core/src/decorators/action-options.ts`
-  (especially: `guard` is a confirm-dialog i18n key, not a permission).
+  (especially: `guard` is confirmation text, not a permission check).
 - `ActionContext` / `CurrentAdmin` types —
   `packages/core/src/actions/action.ts` and
   `packages/core/src/ports/current-admin.ts`. Use these in every
@@ -176,7 +176,8 @@ After integrating Modern Admin into a host project, confirm:
 - Permissions logic — `packages/core/src/modern-admin.ts` (`getRolePermissions`, `invoke`).
 - Upload providers — `packages/feature-upload/src/providers/`.
 - UI primitives — `packages/ui/src/components/`.
-- Full architectural overview — `apps/docs/content/en/docs/architecture.md`.
+- Full architectural overview —
+  `https://docs.modernadminpro.com/docs/architecture`.
 
 When in doubt, read the source — every public export has a JSDoc
 block explaining its contract.

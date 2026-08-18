@@ -2,7 +2,8 @@
 
 ## 12. i18n — translation boundary
 
-When you add **any** new visible string:
+When changing the Modern Admin framework itself, add **any** new visible
+string as follows:
 
 1. Add the key to `packages/i18n/src/locales/en.ts` (source of truth).
 2. Mirror it to all other locales: `de`, `es`, `fr`, `it`, `ja`, `pl`,
@@ -17,6 +18,11 @@ level: `l.uploadingFile.replace('{name}', uploadingName)`.
 
 `packages/ui` components must remain i18n-unaware. If you find
 yourself importing `useI18n` inside `packages/ui` you have it wrong.
+
+Host-owned custom components are different: they render inside
+`@modern-admin/react`'s provider and may call `useI18n()`. Keep host strings in
+a project locale map selected by `locale`; use `metadataTranslations` for
+resource/property/action labels. Never edit installed vendor locale files.
 
 ## 13. Database identity — UUID v7
 
@@ -39,9 +45,11 @@ when paginating large lists.
 ## 14. Cache and realtime
 
 - Default `NoopCacheProvider` is fine for single-replica deployments.
-- For multi-replica: pass `cache: new RedisCacheProvider(redis)` AND
-  `realtime: new RedisRealtimeBus(redis)` so cache-invalidation
-  events propagate across pods.
+- For multi-replica: pass
+  `cache: new RedisCacheProvider({ client, subscriber })` and
+  `realtime: new RedisRealtimeBus({ client })`. The cache provider uses its
+  dedicated subscriber for cross-instance tag invalidation; the realtime bus
+  duplicates its client for browser-facing mutation fan-out.
 - The admin frontend subscribes to the realtime channel and live-
   refreshes list/show pages on remote edits — no code from the agent
   required, just wire the bus.
