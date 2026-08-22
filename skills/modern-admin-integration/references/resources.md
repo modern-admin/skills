@@ -11,68 +11,95 @@ Every resource in this framework is built from **three** pieces:
    and custom actions (`@Action`).
 3. A **NestJS module** that registers the controller.
 
-### Source registry — one file per host app
+### Source registry — host-owned, never imported from the reference app
+
+`@modern-admin/app-shared` is a private workspace package used only by the
+framework's own reference apps. It is not installable by consumers. Keep the
+small registry implementation in the host project:
+
+```ts
+// src/admin/source-registry.ts
+export type AdminSourceFactory = () => unknown;
+
+const registry = new Map<string, AdminSourceFactory>();
+
+export const registerAdminSources = (entries: Record<string, AdminSourceFactory>): void => {
+  for (const [id, factory] of Object.entries(entries)) {
+    registry.set(id, factory);
+  }
+};
+
+export const adminSource = (id: string): unknown => {
+  const factory = registry.get(id);
+  if (!factory) {
+    throw new Error(`[admin] no source registered for resource "${id}"; ` + "register it before NestJS bootstrap");
+  }
+  return factory();
+};
+```
+
+Then register the adapter-specific sources in one boot-time file:
 
 ```ts
 // src/admin-sources.ts (Prisma host)
-import { registerAdminSources } from '@modern-admin/app-shared'
-import type { PrismaResourceConfig } from '@modern-admin/adapter-prisma'
-import { dmmf, prisma } from './db.js'
+import type { PrismaResourceConfig } from "@modern-admin/adapter-prisma";
+import { registerAdminSources } from "./admin/source-registry.js";
+import { dmmf, prisma } from "./db.js";
 
-const lowerFirst = (s: string): string =>
-  s.length === 0 ? s : s.charAt(0).toLowerCase() + s.slice(1)
+const lowerFirst = (s: string): string => (s.length === 0 ? s : s.charAt(0).toLowerCase() + s.slice(1));
 
 // Prisma model name → logical resource id.
 // Keep this map in sync with `registerAdminSources` below.
 const MODEL_TO_LOGICAL: Record<string, string> = {
-  MaUser:    'admins',
-  MaRole:    'roles',
-  Product:   'products',
-  Order:     'orders',
+  MaUser: "admins",
+  MaRole: "roles",
+  Product: "products",
+  Order: "orders",
   // …one entry per managed model
-}
+};
 
-const buildPrismaSource = (
-  modelName: string,
-  logicalId: string,
-): (() => PrismaResourceConfig) => () => {
-  const model = dmmf.datamodel.models.find((m) => m.name === modelName)
-  if (!model) {
-    throw new Error(
-      `[admin] Prisma model "${modelName}" not found in DMMF — ` +
-      `did you forget \`bun run prisma:generate\` after editing schema.prisma?`,
-    )
-  }
-  // CRITICAL: rewrite relation field `type` from Prisma model name to
-  // logical id, so the adapter's FK→reference map resolves the right
-  // resource. Skip this and reference autocompletes, dashboard charts,
-  // and `relatedResources` lookups will silently fail.
-  const fields = model.fields.map((f) => {
-    if (f.kind !== 'object') return f
-    const mapped = MODEL_TO_LOGICAL[f.type]
-    return mapped ? { ...f, type: mapped } : f
-  })
-  return {
-    model: { ...model, name: logicalId, fields },
-    client: prisma,
-    clientKey: lowerFirst(modelName),
-    enums: dmmf.datamodel.enums,
-  }
-}
+const buildPrismaSource =
+  (modelName: string, logicalId: string): (() => PrismaResourceConfig) =>
+  () => {
+    const model = dmmf.datamodel.models.find((m) => m.name === modelName);
+    if (!model) {
+      throw new Error(
+        `[admin] Prisma model "${modelName}" not found in DMMF — ` +
+          `did you forget \`bun run prisma:generate\` after editing schema.prisma?`,
+      );
+    }
+    // CRITICAL: rewrite relation field `type` from Prisma model name to
+    // logical id, so the adapter's FK→reference map resolves the right
+    // resource. Skip this and reference autocompletes, dashboard charts,
+    // and `relatedResources` lookups will silently fail.
+    const fields = model.fields.map((f) => {
+      if (f.kind !== "object") return f;
+      const mapped = MODEL_TO_LOGICAL[f.type];
+      return mapped ? { ...f, type: mapped } : f;
+    });
+    return {
+      model: { ...model, name: logicalId, fields },
+      client: prisma,
+      clientKey: lowerFirst(modelName),
+      enums: dmmf.datamodel.enums,
+      // 0.7 defaults to 'pg'. Set 'mysql' or 'sqlite' explicitly for those DBs.
+      dialect: "pg",
+    };
+  };
 
 registerAdminSources({
-  admins:   buildPrismaSource('MaUser', 'admins'),
-  roles:    buildPrismaSource('MaRole', 'roles'),
-  products: buildPrismaSource('Product', 'products'),
-  orders:   buildPrismaSource('Order',   'orders'),
-})
+  admins: buildPrismaSource("MaUser", "admins"),
+  roles: buildPrismaSource("MaRole", "roles"),
+  products: buildPrismaSource("Product", "products"),
+  orders: buildPrismaSource("Order", "orders"),
+});
 ```
 
 Import this file **before** `NestFactory.create` in `main.ts`:
 
 ```ts
-import './admin-sources.js' // side-effect: populates the registry
-import { NestFactory } from '@nestjs/core'
+import "./admin-sources.js"; // side-effect: populates the registry
+import { NestFactory } from "@nestjs/core";
 ```
 
 ### Resource controller
@@ -86,63 +113,63 @@ import {
   Before,
   type AdminActionContext,
   type RecordActionResponse,
-} from '@modern-admin/nest'
-import { adminSource } from '../source-registry.js'
+} from "@modern-admin/nest";
+import { adminSource } from "../source-registry.js";
 
 interface ProductRow {
-  id: string
-  name: string
-  slug: string
-  price: number
-  stock: number
-  published: boolean
-  publishedAt: Date | null
-  updatedAt: Date
+  id: string;
+  name: string;
+  slug: string;
+  price: number;
+  stock: number;
+  published: boolean;
+  publishedAt: Date | null;
+  updatedAt: Date;
 }
 
 @AdminResource({
-  source: () => adminSource('products'),
-  navigation: { icon: 'Package', group: 'Catalog' },
-  titleProperty: 'name',
-  listProperties: ['name', 'price', 'stock', 'published', 'updatedAt'],
-  filterProperties: ['published'],
-  sort: { sortBy: 'updatedAt', direction: 'desc' },
+  source: () => adminSource("products"),
+  // Stable metadata keys; runtimeConfig.metadataTranslations supplies labels.
+  navigation: { icon: "Package", group: "catalog" },
+  titleProperty: "name",
+  listProperties: ["name", "price", "stock", "published", "updatedAt"],
+  filterProperties: ["published"],
+  sort: { sortBy: "updatedAt", direction: "desc" },
   // Tabs on the show page — one entry per FK relation pointing AT this
   // resource. Inspect the Prisma model: every `Foo[]` or `Foo?` field
   // is a candidate. Skip relations that already show as a `reference`
   // property on the parent side.
-  relatedResources: [
-    { resourceId: 'orderItems', foreignKey: 'productId' },
-  ],
+  relatedResources: [{ resourceId: "orderItems", foreignKey: "productId" }],
   properties: {
-    id:        { isVisible: { edit: false } },
+    id: { isVisible: { edit: false } },
     updatedAt: { isVisible: { edit: false } },
   },
 })
 export class ProductsAdminController extends AdminController<ProductRow> {
-  @Before('new')
-  @Before('edit')
+  @Before("new")
+  @Before("edit")
   fillSlug(ctx: AdminActionContext<ProductRow>): void {
-    if (!ctx.payload.slug && typeof ctx.payload.name === 'string') {
+    if (!ctx.payload.slug && typeof ctx.payload.name === "string") {
       ctx.payload.slug = ctx.payload.name
-        .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
     }
   }
 
   @Action({
-    actionType: 'record',
-    name: 'publish',
+    actionType: "record",
+    name: "publish",
     component: null,
     isVisible: (core) => core.record?.params.published !== true,
-    custom: { icon: 'Send', label: 'Publish' },
+    custom: { icon: "Send" },
   })
   async publish(ctx: AdminActionContext<ProductRow>): Promise<RecordActionResponse> {
-    const record = ctx.record!
-    await record.update({ published: true, publishedAt: new Date() })
+    const record = ctx.record!;
+    await record.update({ published: true, publishedAt: new Date() });
     return {
       record: record.toJSON(),
-      notice: { message: 'Product published', type: 'success' },
-    }
+    };
   }
 }
 ```
@@ -151,8 +178,8 @@ export class ProductsAdminController extends AdminController<ProductRow> {
 
 ```ts
 // src/admin/products/products.module.ts
-import { Module } from '@nestjs/common'
-import { ProductsAdminController } from './products.controller.js'
+import { Module } from "@nestjs/common";
+import { ProductsAdminController } from "./products.controller.js";
 
 @Module({ controllers: [ProductsAdminController] })
 export class ProductsAdminModule {}
@@ -163,9 +190,11 @@ export class ProductsAdminModule {}
 ```ts
 // src/admin.module.ts
 imports: [
-  ModernAdminModule.forRoot({ /* … */ }),
-  ProductsAdminModule,        // ← one line per resource
-]
+  ModernAdminModule.forRoot({
+    /* … */
+  }),
+  ProductsAdminModule, // ← one line per resource
+];
 ```
 
 Then restart the dev server (`scripts/dev.sh restart api-prisma`).
@@ -191,7 +220,7 @@ For each Prisma model you turn into a resource:
    implementation detail.
 5. **For each sensitive column** (password hash, API key, refresh
    token, internal secret): set `isAccessible: false` — NOT just
-   `isVisible: false`. See *What to hide vs. expose* below.
+   `isVisible: false`. See _What to hide vs. expose_ below.
 6. **For each "operation"** the domain expert mentions (publish,
    approve, regenerate, archive, send, retry, discard): add a custom
    `@Action({ actionType: 'record' | 'bulk' | 'resource' })` method.
@@ -202,14 +231,14 @@ For each Prisma model you turn into a resource:
 
    **Verb → actionType mapping:**
 
-   | Verb in spec                        | `actionType` | Notes |
-   |-------------------------------------|--------------|-------|
-   | Publish, archive, approve, lock     | `record`     | Per-row state transition |
-   | Resend, retry, regenerate, refresh  | `record`     | Idempotent retry on one row |
-   | Test credentials, ping, validate    | `record`     | Diagnostics on one row |
-   | Approve selected, archive selected  | `bulk`       | Same verb, multi-row |
-   | Export, import, recompute totals    | `resource`   | Toolbar-level, no row scope |
-   | Force-sync from external API        | `resource`   | Cross-row maintenance |
+   | Verb in spec                       | `actionType` | Notes                       |
+   | ---------------------------------- | ------------ | --------------------------- |
+   | Publish, archive, approve, lock    | `record`     | Per-row state transition    |
+   | Resend, retry, regenerate, refresh | `record`     | Idempotent retry on one row |
+   | Test credentials, ping, validate   | `record`     | Diagnostics on one row      |
+   | Approve selected, archive selected | `bulk`       | Same verb, multi-row        |
+   | Export, import, recompute totals   | `resource`   | Toolbar-level, no row scope |
+   | Force-sync from external API       | `resource`   | Cross-row maintenance       |
 
    Skeleton:
 
@@ -244,30 +273,30 @@ When deciding `type` (or letting it be inferred), use this table.
 Inferred types are usually correct — override only when the database
 column type is ambiguous.
 
-| DB shape / intent                       | Use `type:`     | Reason |
-|----------------------------------------|-----------------|--------|
-| Plain short text                        | `string`        | Default text input |
-| Multi-paragraph body                    | `textarea`      | Resizable textarea |
-| HTML body, blog post                    | `richtext`      | TipTap editor with toolbar |
-| Markdown body, README-style             | `markdown`      | Markdown editor with preview |
-| Integer count, ID                       | `number`        | Number input, integer step |
-| Decimal price                           | `money` or `currency` | Formatted with currency symbol |
-| Float without currency                  | `float`         | Decimal number input |
-| `true/false` flag                       | `boolean`       | Switch / checkbox |
-| Date only (no time)                     | `date`          | Date picker |
-| Date + time                             | `datetime`      | Date-time picker |
-| Closed enum (Prisma enum / string list) | `enum`          | Select; `availableValues` required |
-| FK to another resource                  | `reference`     | Auto-detected; set `reference: 'id'` to override |
-| Many-to-many through join table         | `m2m`           | Requires `@modern-admin/feature-m2m` |
-| Free-form JSON, known keys              | `json` + `keyValueFields` | Friendly per-key editor |
-| Free-form JSON, unknown keys            | `json`          | Raw JSON editor |
-| File upload (single)                    | `file`          | Requires `@modern-admin/feature-upload` |
-| Multiple files                          | `file` + `isArray: true` | Same plugin |
-| Phone number                            | `phone`         | International phone input |
-| Color picker                            | `color`         | Hex color swatch |
-| Password (hash stored)                  | `password`      | Hidden by default; use `feature-password` |
-| UUID id                                 | `uuid`          | Monospace, read-only |
-| Image preview from URL                  | `previewMedia`  | Renders thumbnail in list |
+| DB shape / intent                       | Use `type:`               | Reason                                           |
+| --------------------------------------- | ------------------------- | ------------------------------------------------ |
+| Plain short text                        | `string`                  | Default text input                               |
+| Multi-paragraph body                    | `textarea`                | Resizable textarea                               |
+| HTML body, blog post                    | `richtext`                | TipTap editor with toolbar                       |
+| Markdown body, README-style             | `markdown`                | Markdown editor with preview                     |
+| Integer count, ID                       | `number`                  | Number input, integer step                       |
+| Decimal price                           | `money` or `currency`     | Formatted with currency symbol                   |
+| Float without currency                  | `float`                   | Decimal number input                             |
+| `true/false` flag                       | `boolean`                 | Switch / checkbox                                |
+| Date only (no time)                     | `date`                    | Date picker                                      |
+| Date + time                             | `datetime`                | Date-time picker                                 |
+| Closed enum (Prisma enum / string list) | `enum`                    | Select; `availableValues` required               |
+| FK to another resource                  | `reference`               | Auto-detected; set `reference: 'id'` to override |
+| Many-to-many through join table         | `m2m`                     | Requires `@modern-admin/feature-m2m`             |
+| Free-form JSON, known keys              | `json` + `keyValueFields` | Friendly per-key editor                          |
+| Free-form JSON, unknown keys            | `json`                    | Raw JSON editor                                  |
+| File upload (single)                    | `file`                    | Requires `@modern-admin/feature-upload`          |
+| Multiple files                          | `file` + `isArray: true`  | Same plugin                                      |
+| Phone number                            | `phone`                   | International phone input                        |
+| Color picker                            | `color`                   | Hex color swatch                                 |
+| Password (hash stored)                  | `password`                | Hidden by default; use `feature-password`        |
+| UUID id                                 | `uuid`                    | Monospace, read-only                             |
+| Image preview from URL                  | `previewMedia`            | Renders thumbnail in list                        |
 
 Heuristic checklist for each property:
 
@@ -292,14 +321,17 @@ when leaks would be sensitive):
   needs to debug it. In that case: `isVisible: { show: true }` only.
 
 **Hide from list, keep on show** (`isVisible: { list: false }`):
+
 - Long text fields, descriptions, blobs of JSON, attached files
   metadata — they explode the list table width.
 
 **Hide from edit** (`isVisible: { edit: false }`):
+
 - Server-computed fields: `id`, `createdAt`, `updatedAt`, derived
   totals, denormalised counters.
 
 **Defaults already provided** by `BaseProperty.isVisible()`:
+
 - Anything matching `/password/i` is hidden by default.
 - IDs are not editable by default (`isEditable() === false`).
 

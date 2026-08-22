@@ -38,7 +38,7 @@ Non-interactive, single-skill, or pinned-to-version install:
 
 ```sh
 npx skills add modern-admin/skills --skill modern-admin-integration --yes
-npx skills add modern-admin/skills#v2.1.0
+npx skills add modern-admin/skills#v2.1.1
 ```
 
 Claude Code users can also install via the plugin mechanism:
@@ -51,7 +51,7 @@ Claude Code users can also install via the plugin mechanism:
 
 | Skill | What it covers |
 |-------|----------------|
-| [`modern-admin-integration`](./skills/modern-admin-integration/SKILL.md) | Wiring `ModernAdminModule.forRoot`, adding resources, Better Auth + Prisma + Redis setup, scaffolding custom components with `modern-admin setup-ui`, declaring `@Action`/`@Before`/`@After` hooks, role permissions via `MaRole.permissions`, the 14 `Ma*` Prisma models, and auth/SPA troubleshooting. |
+| [`modern-admin-integration`](./skills/modern-admin-integration/SKILL.md) | Modern Admin 0.7 wiring: `ModernAdminModule`, resources, Better Auth + Prisma + Redis, runtime i18n/branding, authenticated config, custom UI, actions/hooks, role permissions, the 14 `Ma*` models, and auth/SPA troubleshooting. |
 
 ## Contributing
 

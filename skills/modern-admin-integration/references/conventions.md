@@ -27,20 +27,23 @@ resource/property/action labels. Never edit installed vendor locale files.
 ## 13. Database identity — UUID v7
 
 ```ts
-import { uuidv7 } from '@modern-admin/core'
+import { uuidv7 } from "@modern-admin/core";
 
 await prisma.maUser.create({
-  data: { id: uuidv7(), email, name, /* … */ },
-})
+  data: { id: uuidv7(), email, name /* … */ },
+});
 ```
 
 Do not rely on Prisma `@default(uuid(7))` — different Prisma versions
 generate v4 even with `uuid(7)` specified in older clients. Always
 generate in app code.
 
-UUID v7 is time-ordered, so list pagination by `id` (or by
-`createdAt`) returns newest-first cheaply. Use the id as the cursor
-when paginating large lists.
+UUID v7 is lexicographically time-ordered by its millisecond prefix, but ids
+created in the same millisecond do not preserve insertion order. For stable
+newest-first paging, sort by `(createdAt DESC, id DESC)` and use the same pair
+as a keyset cursor when the chosen store/adapter supports cursors. Do not pass
+`StreamOptions.cursor` to the offset-based core implementation; Modern Admin
+0.7 rejects that previously ignored option.
 
 ## 14. Cache and realtime
 

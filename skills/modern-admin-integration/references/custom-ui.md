@@ -39,6 +39,12 @@ The command refuses to overwrite an unmarked non-empty directory or an
 existing custom `webPackage` (the explicit `@modern-admin/web` default may be
 replaced safely); re-runs preserve all generated UI files.
 
+Modern Admin 0.7 disables production source maps by default. Keep
+`sourcemap: false` for a publicly reachable bundle. Use `sourcemap: 'hidden'`
+only when an error tracker needs maps without browser-visible
+`sourceMappingURL` comments; `true` exposes the custom bundle's source through
+served `.map` assets.
+
 After generation:
 
 ```sh
@@ -53,26 +59,21 @@ bun run ui:dev
 
 ```tsx
 // 1. Build the component using @modern-admin/ui primitives.
-import type { PropertyDisplayProps } from '@modern-admin/react'
-import { Badge } from '@modern-admin/ui'
+import type { PropertyDisplayProps } from "@modern-admin/react";
+import { Badge } from "@modern-admin/ui";
 
 export function StatusBadge(props: PropertyDisplayProps) {
-  const paid = props.value === 'paid'
-  return (
-    <Badge variant={paid ? 'success' : 'destructive'}>
-      {String(props.value)}
-    </Badge>
-  )
+  const paid = props.value === "paid";
+  return <Badge variant={paid ? "success" : "destructive"}>{String(props.value)}</Badge>;
 }
 ```
 
 ```ts
 // 2. Register in generated ui/src/admin-components.ts.
-import { ComponentLoader } from '@modern-admin/react'
-import { StatusBadge } from './components/status-badge.js'
+import { ComponentLoader } from "@modern-admin/react";
+import { StatusBadge } from "./components/status-badge.js";
 
-export const adminComponents = new ComponentLoader()
-  .add('StatusBadge', StatusBadge)
+export const adminComponents = new ComponentLoader().add("StatusBadge", StatusBadge);
 ```
 
 ```ts
