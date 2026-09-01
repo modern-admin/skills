@@ -30,6 +30,10 @@
   go through `adminSource('logical-id')` registered in
   `admin-sources.ts`. Without the registry, FK→reference resolution
   breaks and the resource cannot be reused under another adapter.
+- **Do not import `@modern-admin/app-shared` in a host.** It is a private
+  workspace package for the repository's reference apps and is not published.
+  Copy the small registry implementation into the host as shown in
+  resources.md, then import only public `@modern-admin/*` packages.
 - **Do not forget `relatedResources`.** Every reverse relation
   (`Foo[]` or `Foo?` on the parent side) is a candidate for a tab on
   the show page; skip only after a deliberate decision.
@@ -41,24 +45,25 @@
   `currentAdmin?.role`.** That is exactly what the `MaRole`
   permissions matrix exists for — see permissions.md §6a. Code-pinned
   `isAccessible` is for invariants no role may bypass.
-- **Do not inline the action context type.** Always import
-  `ActionContext` (or `AdminActionContext<Row>`) from
-  `@modern-admin/core` / `@modern-admin/nest`. An inline
+- **Do not inline access-callback context types.** Import the context that
+  belongs to that API: `ActionContext` / `AdminActionContext<Row>` for
+  actions and `PropertyContext` for property `isAccessible`. A property
+  context has no `action` field. An inline
   `({ currentAdmin }: { currentAdmin?: { role?: string } })` strips
   `record`/`records`/`cache`/`admin` from autocomplete and rots
   on every API change.
 - **Do not use the `actions:` key inside `@AdminResource({...})`.** The
   NestJS decorator type is `Omit<ResourceOptions, 'actions'>` —
   TypeScript will reject it (`TS2353: ... 'actions' does not exist in
-  type 'AdminResourceMeta'`). All action config in NestJS style goes
+type 'AdminResourceMeta'`). All action config in NestJS style goes
   through `@Action(...)`, `@Before(...)`, `@After(...)` method
   decorators, or — for role gating — through `MaRole.permissions`.
   See permissions.md §6b–§6d.
 - **Do not ship a transactional resource without any custom
-  `@Action`.** If the domain spec contains verbs like *approve*,
-  *publish*, *regenerate*, *retry*, *discard*, *send*, *archive*,
+  `@Action`.** If the domain spec contains verbs like _approve_,
+  _publish_, _regenerate_, _retry_, _discard_, _send_, _archive_,
   every one of them is a `@Action({ actionType: 'record' | 'bulk' |
-  'resource' })` method on the controller.
+'resource' })` method on the controller.
 - **Do not repeat `isVisible: { list: true }` etc.** `true` is the
   default for every flag — overriding it just adds noise. Only
   override when flipping to `false`.
@@ -71,7 +76,7 @@
   `AdminController<TRow>.delete: (ctx) => Promise<RecordActionResponse>`
   and emits `TS2416`. Either return `Promise<never>` (for stubs that
   always throw) or use `override async delete(ctx: DeleteContext<Row>):
-  Promise<RecordActionResponse> { return super.delete(ctx) }`
+Promise<RecordActionResponse> { return super.delete(ctx) }`
   (to wrap the default with `guard:`/`isVisible:`). See permissions.md §6d.
 - **Do not use `as never` to silence `BetterAuthProvider` typing
   noise.** With a direct `import { auth } from './auth.js'`,
@@ -89,6 +94,14 @@
   `404 Not Found`. Always import
   `ModernAdminStaticUiModule.forRoot({ path: '/admin', … })` next to
   `AdminModule`. See auth-and-infra.md §11c.
+- **Do not mount `ModernAdminStaticUiModule` at `/`.** Modern Admin 0.10
+  rejects a root mount because it would swallow `/admin/api/*`. Use `/admin`
+  (or another non-root SPA prefix) and keep the API/auth paths coordinated.
+- **Do not set `publicConfig: true` by habit.** `/admin/api/config` is
+  authenticated by default because its snapshot discloses resource ids,
+  property paths, and enum values. Runtime `brand` is available to the login
+  screen without opening the endpoint. Opt in only for a concrete anonymous
+  bootstrap requirement. See auth-and-infra.md §11c.2.
 - **Do not use bare `toNodeHandler(auth)` at the `/admin/api/auth`
   prefix.** `toNodeHandler` is greedy — it returns its own 404 for any
   path it doesn't own, shadowing `AuthController`'s `/login`, `/me`,
@@ -118,6 +131,11 @@
   **403 Forbidden**. Add `admin({ defaultRole: '…' })` from
   `better-auth/plugins` alongside `apiKey({...})`. See
   auth-and-infra.md §11e.
+- **Do not assume an unknown role name fails closed.** A missing role claim is
+  denied, but in 0.10 a present role whose row/matrix cannot be resolved is
+  deliberately allowed for upgrade compatibility. Seed and validate assigned
+  roles; add a host guard when strict unknown-role denial is required. See
+  permissions.md §6c.
 - **Do not cherry-pick the `Ma*` schema fragment.** `setupPrismaSystem`
   resolves all 14 delegates eagerly on boot and throws
   `[modern-admin/system-prisma] missing delegate "prisma.maWebhook"`
@@ -142,8 +160,9 @@ After integrating Modern Admin into a host project, confirm:
 - [ ] Every sensitive column (`password`, `apiKey`, …) is absent from
       both the JSON response and the rendered UI.
 - [ ] Every destructive action (`delete`, `bulkDelete`, custom
-      "archive") has a `guard:` confirmation and an `isAccessible`
-      role check.
+      "archive") has a `guard:` confirmation and is restricted through
+      `MaRole.permissions`; code-pinned `isAccessible` is reserved for true
+      invariants.
 - [ ] Every new visible string exists in all 9 locale files.
 - [ ] `bun run typecheck` is green for the whole workspace.
 - [ ] Tests added for every custom hook, custom action handler, and
@@ -155,10 +174,10 @@ After integrating Modern Admin into a host project, confirm:
 
 - **Canonical resource controller** —
   `apps/_shared/src/admin/posts/posts.controller.ts` (hooks + record
-  + bulk actions) and
-  `apps/_shared/src/admin/customers/customers.controller.ts`
-  (`passwordsFeature` + hooks + custom record action).
-  Read these BEFORE writing a new resource.
+  - bulk actions) and
+    `apps/_shared/src/admin/customers/customers.controller.ts`
+    (`passwordsFeature` + hooks + custom record action).
+    Read these BEFORE writing a new resource.
 - **Canonical source registry** — `apps/_shared/src/admin/source-registry.ts`.
 - **Canonical Prisma source factory** —
   `apps/api-prisma/src/admin-sources.ts` (logical-id mapping +
@@ -168,10 +187,11 @@ After integrating Modern Admin into a host project, confirm:
 - Property options schema — `packages/core/src/decorators/property-options.ts`.
 - Action options schema — `packages/core/src/decorators/action-options.ts`
   (especially: `guard` is confirmation text, not a permission check).
-- `ActionContext` / `CurrentAdmin` types —
+- Access callback contexts — `ActionContext` / `CurrentAdmin` in
   `packages/core/src/actions/action.ts` and
-  `packages/core/src/ports/current-admin.ts`. Use these in every
-  `isAccessible`/`isVisible` callback.
+  `packages/core/src/ports/current-admin.ts`; `PropertyContext` in
+  `packages/core/src/decorators/property-options.ts`. Use the context for the
+  specific action or property API.
 - NestJS decorators (including `AdminController`, `@Before`, `@After`,
   `@Action`) — `packages/nest/src/admin/decorators.ts`.
 - Built-in action handlers — `packages/core/src/actions/*.ts`.

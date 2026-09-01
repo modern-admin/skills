@@ -10,7 +10,7 @@ description: >
   property, or diagnosing upload, preview, cleanup, size, MIME, and
   multi-replica problems.
 license: MIT
-compatibility: Modern Admin (@modern-admin/*) 0.x
+compatibility: Modern Admin (@modern-admin/*) 0.10.x
 metadata:
   author: modern-admin
   version: "1.0.0"

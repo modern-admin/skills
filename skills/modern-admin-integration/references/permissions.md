@@ -6,8 +6,8 @@ Wiring:
 ```ts
 ModernAdminModule.forRoot({
   // …
-  rolesResourceId: 'roles',  // resource id whose rows are MaRole
-})
+  rolesResourceId: "roles", // resource id whose rows are MaRole
+});
 ```
 
 The matrix lives in `MaRole.permissions` as JSON:
@@ -68,13 +68,13 @@ scanner never reads it. In the NestJS style, actions are configured
 **exclusively** through method-level decorators on the controller
 class:
 
-| Goal                                          | How to achieve it in NestJS style                  |
-|-----------------------------------------------|----------------------------------------------------|
-| Add a custom action (button)                  | `@Action({...})` method                            |
-| Override a built-in handler                   | Method named `delete` / `edit` / `new` / `bulkDelete` / `list` / `show` / `search` |
-| Add a `before`/`after` hook                   | `@Before('actionName')` / `@After('actionName')`   |
-| **Hide / disable a built-in for a role**      | **Permissions matrix in `MaRole.permissions`** — NOT in code |
-| Hide a built-in for ALL roles (true invariant)| `@Action({ name: 'delete', actionType: 'record', isAccessible: false })` on a stub method (see 6c) |
+| Goal                                           | How to achieve it in NestJS style                                                                  |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Add a custom action (button)                   | `@Action({...})` method                                                                            |
+| Override a built-in handler                    | Method named `delete` / `edit` / `new` / `bulkDelete` / `list` / `show` / `search`                 |
+| Add a `before`/`after` hook                    | `@Before('actionName')` / `@After('actionName')`                                                   |
+| **Hide / disable a built-in for a role**       | **Permissions matrix in `MaRole.permissions`** — NOT in code                                       |
+| Hide a built-in for ALL roles (true invariant) | `@Action({ name: 'delete', actionType: 'record', isAccessible: false })` on a stub method (see 6c) |
 
 ## 6c. Making a resource read-only — through roles, not code
 
@@ -85,35 +85,41 @@ permissions list:
 ```ts
 // One-time seed (e.g. in a Nest `OnApplicationBootstrap` hook).
 await prisma.maRole.upsert({
-  where: { id: 'editor' },
+  where: { id: "editor" },
   create: {
-    id: 'editor',
-    description: 'Read-only for review streams, full access to apps',
+    id: "editor",
+    description: "Read-only for review streams, full access to apps",
     permissions: {
       // read-only resources
-      reviews:              ['list', 'show'],
-      'audit-logs':         ['list', 'show'],
-      replies:              ['list', 'show'],
-      'review-processings': ['list', 'show', 'edit'],
+      reviews: ["list", "show"],
+      "audit-logs": ["list", "show"],
+      replies: ["list", "show"],
+      "review-processings": ["list", "show", "edit"],
       // editable resources
-      apps:           ['*'],
-      moderators:     ['*'],
-      'global-config':['list', 'show', 'edit'],
+      apps: ["*"],
+      moderators: ["*"],
+      "global-config": ["list", "show", "edit"],
       // hidden entirely
       admins: [],
-      roles:  [],
+      roles: [],
     },
     isBuiltin: false,
   },
   update: {},
-})
+});
 ```
 
-The `admin` role keeps `{ "*": ["*"] }`. Users with no role match get
-nothing.
+The `admin` role keeps `{ "*": ["*"] }`. A principal with no `role` claim is
+denied when `rolesResourceId` is configured. Do not confuse that case with an
+unknown role name: in 0.10, a principal that has a role claim but whose role row
+or permission matrix cannot be resolved is deliberately allowed for upgrade
+compatibility. Seed and validate every assigned role. If the host requires
+strict fail-closed handling for unknown roles, add a host guard that verifies
+the role row and matrix before requests reach the admin controllers.
 
 This single-source-of-truth approach beats the "disable in code"
 approach because:
+
 - The product owner can tune permissions through the admin UI
   without a redeploy.
 - All visibility rules live in one place (the role row).
@@ -173,24 +179,24 @@ import {
   type BulkDeleteContext,
   type NewContext,
   type RecordActionResponse,
-} from '@modern-admin/nest'
+} from "@modern-admin/nest";
 
 @AdminResource({
-  source: () => adminSource('audit-logs'),
+  source: () => adminSource("audit-logs"),
   // …
 })
 export class AuditLogAdminController extends AdminController<AuditLogRow> {
-  @Action({ actionType: 'resource', name: 'new', isAccessible: false })
+  @Action({ actionType: "resource", name: "new", isAccessible: false })
   override async new(_ctx: NewContext<AuditLogRow>): Promise<never> {
-    throw new Error('unreachable')
+    throw new Error("unreachable");
   }
-  @Action({ actionType: 'record', name: 'delete', isAccessible: false })
+  @Action({ actionType: "record", name: "delete", isAccessible: false })
   override async delete(_ctx: DeleteContext<AuditLogRow>): Promise<never> {
-    throw new Error('unreachable')
+    throw new Error("unreachable");
   }
-  @Action({ actionType: 'bulk', name: 'bulkDelete', isAccessible: false })
+  @Action({ actionType: "bulk", name: "bulkDelete", isAccessible: false })
   override async bulkDelete(_ctx: BulkDeleteContext<AuditLogRow>): Promise<never> {
-    throw new Error('unreachable')
+    throw new Error("unreachable");
   }
 }
 ```
@@ -204,29 +210,34 @@ This is verbose by design — if you find yourself writing it on more
 than one or two resources, you almost certainly want the role-matrix
 path from §6c instead.
 
-## 6f. Sealed-invariant `isAccessible` on properties (allowed)
+## 6f. Property access is global, not action-specific
 
 `properties:` IS part of `AdminResourceMeta`, so property-level
-`isAccessible` is fine:
+`isAccessible` is valid. Its callback receives `PropertyContext`, however,
+not `ActionContext`; there is no `action` field. Use it for global redaction
+based on the current principal, resource, or property:
 
 ```ts
-import type { ActionContext } from '@modern-admin/core'
+import type { PropertyContext } from '@modern-admin/core'
 
 properties: {
-  // A column whose value comes from a third-party system and must
-  // never be human-edited (rustore feedback id, stripe charge id, …):
+  // Globally redact the value for every non-admin principal, including JSON.
+  providerSecret: {
+    isAccessible: ({ currentAdmin }: PropertyContext) =>
+      currentAdmin?.role === 'admin',
+  },
+  // Third-party ids may remain visible on list/show, but not editable.
   rustoreFeedbackId: {
-    isVisible:    { edit: false },   // hide from UI
-    isAccessible: ({ action }: ActionContext) => action.name !== 'edit',
+    isVisible: { edit: false },
   },
 }
 ```
 
-Always type the callback as `(ctx: ActionContext) => boolean` and
-import `ActionContext` from `@modern-admin/core`. Do NOT write inline
-types like `({ currentAdmin }: { currentAdmin?: { role?: string } })`
-— they shadow real fields (`record`, `records`, `cache`, `admin`,
-`resource`) and rot when the API changes.
+`isVisible: { edit: false }` is a UI rule, not a write invariant. When a value
+must never be supplied by an admin request, also strip or reject it in
+`@Before('new')` / `@Before('edit')`. Always type access callbacks with the
+framework context (`PropertyContext` here). Do not write inline lookalike
+types; they hide API drift.
 
 ## 6g. `guard` — confirmation prompt, NOT a permission name
 
@@ -236,13 +247,18 @@ permission identifier. It lives on the `@Action(...)` decorator, not
 on a hypothetical `actions:` map.
 
 ```ts
+import type { DeleteContext, RecordActionResponse } from '@modern-admin/nest'
+
+type AppRow = Record<string, unknown> // replace with the controller's row type
+
 @Action({
   actionType: 'record',
   name: 'delete',
-  // ↓ The built-in delete handler keeps running; this just adds a confirm.
   guard: 'confirmDeleteApp',   // i18n key, resolved client-side
 })
-delete() { /* … override or empty to keep default … */ }
+override async delete(ctx: DeleteContext<AppRow>): Promise<RecordActionResponse> {
+  return super.delete(ctx)     // preserve the built-in handler
+}
 ```
 
 Then add `confirmDeleteApp: 'Delete app "{name}"? This cannot be

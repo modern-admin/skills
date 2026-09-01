@@ -8,12 +8,13 @@ description: >
   hooks, setting up role permissions (`MaRole.permissions`), or
   troubleshooting auth/SPA 404s. Triggers on tasks that mention
   `@AdminResource`, `AdminController`, `adminSource`, `BetterAuthProvider`,
-  `ModernAdminStaticUiModule`, `setupPrismaSystem`, `MaRole`,
+  `ModernAdminStaticUiModule`, `publicConfig`, `metadataTranslations`,
+  `setupPrismaSystem`, `MaRole`,
   `rolesResourceId`, the `ma_*` schema fragment, custom UI components,
   `modern-admin setup-ui`, `mediaGenerationFeature`, `RetentionModule`,
   `createRedisCacheProvider`, or scaffolding `bun create @modern-admin`.
 license: MIT
-compatibility: Modern Admin (@modern-admin/*) 0.x
+compatibility: Modern Admin (@modern-admin/*) 0.10.x
 metadata:
   author: modern-admin
   version: "2.2.0"
@@ -40,6 +41,28 @@ rules so you don't re-discover them.
    See `references/conventions.md`.
 5. **Mobile-first.** Verify every new UI at ≤375px viewport.
 6. **Auto-discovery beats config.** Override only what diverges.
+
+## Current API baseline — Modern Admin 0.10
+
+This skill targets the latest stable `@modern-admin/*` 0.10 line. The upgrade-
+sensitive contracts are:
+
+- `GET /admin/api/config` requires a session by default. Set
+  `publicConfig: true` only when the login experience must read the filtered
+  config before authentication.
+- `ModernAdminModule.forRootAsync({ aiAssistant: true, useFactory })` must set
+  the synchronous flag exactly when the factory returns an `aiAssistant`
+  block; a mismatch fails at boot.
+- Standalone UI branding and locale overrides belong to
+  `ModernAdminStaticUiModule` (`themeCss`, `faviconUrl`, `headHtml`,
+  `staticFiles`) and `runtimeConfig` (`brand`, `translations`,
+  `metadataTranslations`, `forceLocale`).
+- Prisma resources default to `dialect: 'pg'`; set `'mysql'` or `'sqlite'`
+  explicitly for those databases. The dialect controls generated display SQL
+  and whether Prisma's PostgreSQL-only case-insensitive mode is emitted.
+
+See `references/auth-and-infra.md` and `references/resources.md` for complete
+examples.
 
 ## When to use Modern Admin
 
@@ -68,16 +91,18 @@ missing.
 
 When a host needs custom property/action components, run
 `bunx @modern-admin/create setup-ui` from the host package root instead of
-hand-copying the Vite shell. Pass `--api-proxy` when the backend is not on port
-3001. The command creates `ui/`, adds host dependencies/scripts, and sets
+hand-copying the Vite shell. Pass `--api-proxy` when the backend is not on port 3001. The command creates `ui/`, adds host dependencies/scripts, and sets
 `ModernAdminStaticUiModule.webPackage` without overwriting existing UI files.
 See `references/custom-ui.md`.
 
 ## The three pieces of every resource
 
-1. **Source registry** (`src/admin-sources.ts`) — maps logical resource ids
-   to adapter-specific raw source objects via `registerAdminSources({...})`.
-   Import as a side-effect **before** `NestFactory.create` in `main.ts`.
+1. **Host-owned source registry** (`src/admin/source-registry.ts`) plus
+   registrations (`src/admin-sources.ts`) — maps logical resource ids to
+   adapter-specific raw source objects via `registerAdminSources({...})`.
+   Import the registrations as a side effect **before**
+   `NestFactory.create` in `main.ts`. Never import the reference app's private
+   `@modern-admin/app-shared` workspace package.
 2. **Resource controller** — `extends AdminController<Row>` (never body-less),
    carries `@AdminResource(...)` metadata + `@Before`/`@After` hooks +
    `@Action` methods.
@@ -101,7 +126,7 @@ bypass. See `references/permissions.md` for the role-matrix recipe, true-
 invariant `Promise<never>` stubs, base-class signature matching for
 overrides (avoid `TS2416`), and the `guard:` vs `isAccessible:` distinction.
 
-## Auth wiring — the six must-knows
+## Auth wiring — the eight must-knows
 
 1. **`admin()` plugin is MANDATORY** when using `rolesResourceId`. Without
    it `session.user.role` is `undefined` and every role-gated action returns
@@ -124,6 +149,12 @@ overrides (avoid `TS2416`), and the `guard:` vs `isAccessible:` distinction.
    pair, and the `userId` index. Credentials are exactly
    `providerId: 'credential'`, `issuer: 'local:credential'`,
    `accountId: user.id`. Never reuse a 1.6 schema with 1.7.
+7. **`GET /admin/api/config` is authenticated by default.** Do not expose the
+   resource schema accidentally; opt in with `publicConfig: true` only when
+   unauthenticated bootstrap config is required.
+8. **`forRootAsync.aiAssistant` must agree with the resolved options.** Set the
+   outer boolean when and only when `useFactory` returns an `aiAssistant`
+   block, and configure the root BullMQ connection when it is enabled.
 
 Full details + code examples: `references/auth-and-infra.md`.
 
@@ -136,15 +167,17 @@ Full details + code examples: `references/auth-and-infra.md`.
   §5 hide vs. expose (`isVisible` vs `isAccessible`).
 - `./references/permissions.md` — §6 roles × actions, DB-driven vs code-pinned,
   `actions:` forbidden, read-only via roles, base-class signature, true
-  invariants, sealed-invariant property `isAccessible`, `guard:` vs permissions.
+  invariants, global property redaction, `guard:` vs permissions.
 - `./references/actions-and-plugins.md` — §7 built-in actions and when to
   override, §8 plugin/feature/media-generation selection, retention, §10 hooks
   vs actions vs handlers.
 - `./references/custom-ui.md` — §9 `modern-admin setup-ui`, component
   registration, `@modern-admin/ui` primitives, i18n, Tailwind 4 rules.
-- `./references/auth-and-infra.md` — §11 a–f: `BetterAuthProvider` wiring,
+- `./references/auth-and-infra.md` — §11 a–g: `BetterAuthProvider` wiring,
   `RedisCacheProvider`, `ModernAdminStaticUiModule`, `createBetterAuthMiddleware`,
-  `admin()` plugin requirement, `BigInt` serialisation.
+  0.10 runtime config/branding, authenticated bootstrap config,
+  `forRootAsync` AI agreement, `admin()` plugin requirement, `BigInt`
+  serialisation.
 - `./references/conventions.md` — §12 i18n boundary, §13 UUID v7,
   §14 cache + realtime.
 - `./references/anti-patterns.md` — §15 full anti-pattern list,
@@ -156,7 +189,9 @@ Full details + code examples: `references/auth-and-infra.md`.
       `.dev-logs/` show no errors.
 - [ ] Seed admin can log in at `/admin` and sees every registered resource.
 - [ ] Sensitive columns (`password`, `apiKey`, …) absent from both JSON and UI.
-- [ ] Every destructive action has `guard:` confirm + `isAccessible` role check.
+- [ ] Every destructive action has a `guard:` confirmation and is granted only
+      to intended roles by `MaRole.permissions`; code-pinned `isAccessible` is
+      used only for invariants no role may bypass.
 - [ ] Every new visible string exists in all 9 locale files.
 - [ ] `bun run typecheck` is green workspace-wide.
 - [ ] Tests added for every custom hook, action handler, UI component.
