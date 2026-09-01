@@ -83,23 +83,25 @@ prefer `BetterAuthProviderOptions['auth']` so future drift in the
 instance shape produces a real error instead of being silently
 swallowed.
 
-## 11b. Wiring `RedisCacheProvider` — pass a `client`, not a URL
+## 11b. Wiring Redis cache and realtime
 
-`RedisCacheOptions` expects a Redis-like **client object**
-(`packages/cache-redis/src/index.ts`), not a connection string:
+Prefer the convenience factory when the host owns only a URL. It creates the
+command and dedicated subscriber connections:
 
 ```ts
-// ❌ TS2353: Object literal may only specify known properties,
-//    and 'url' does not exist in type 'RedisCacheOptions'.
-new RedisCacheProvider({ url: process.env.REDIS_URL })
+import { createRedisCacheProvider } from '@modern-admin/cache-redis'
+
+const cacheProvider = process.env.REDIS_URL
+  ? createRedisCacheProvider({ url: process.env.REDIS_URL })
+  : undefined
 ```
 
-Construct an `ioredis` client and pass it as `client`. For pub/sub
-invalidation you also need a dedicated `subscriber` client (ioredis
-won't multiplex pub/sub on a connection that's also serving commands):
+The direct `RedisCacheProvider` constructor still expects a Redis-like
+**client object**, not a `url` property. Pass an explicit subscriber when the
+client cannot `duplicate()` or when the host owns connection lifecycles:
 
 ```ts
-import Redis from 'ioredis'
+import { Redis } from 'ioredis'
 import { RedisCacheProvider } from '@modern-admin/cache-redis'
 
 const cacheProvider = process.env.REDIS_URL
@@ -110,9 +112,23 @@ const cacheProvider = process.env.REDIS_URL
   : undefined
 ```
 
-Same constructor pattern for `RedisRealtimeBus` in
-`@modern-admin/realtime`. The cache and bus may share the *command*
-client but must each have their own *subscriber*.
+When `subscriber` is omitted, the cache calls `client.duplicate()` on first
+subscription. If neither an explicit subscriber nor `duplicate()` is
+available, `subscribe()` throws.
+
+`RedisRealtimeBus` has a different public shape: pass exactly one capable
+client and let the bus duplicate it internally for subscriptions:
+
+```ts
+import { RedisRealtimeBus } from '@modern-admin/realtime'
+
+const realtime = new RedisRealtimeBus({
+  client: new Redis(process.env.REDIS_URL!),
+})
+```
+
+Do not pass `subscriber` to `RedisRealtimeBus`; it is not part of
+`RedisRealtimeBusOptions`.
 
 ## 11c. Serving the SPA — `ModernAdminStaticUiModule` is REQUIRED
 

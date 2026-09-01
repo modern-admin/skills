@@ -25,7 +25,8 @@ require a commercial license. Everything in this skill targets open-core and
 needs no token. See `actions-and-plugins.md` §8 for Pro plugins — reach for
 that only if the task explicitly pulls in a `@modern-admin-pro/*` dependency.
 
-This produces a NestJS 11 app with:
+This produces a NestJS 12 app using Bun 1.4+, TypeScript 7, Prisma 7.10+, and
+Better Auth 1.7+ with:
 
 - `prisma/schema.prisma` — `ma_*` system tables only (admins, sessions,
   roles, logs, history, config, dashboards, cache).

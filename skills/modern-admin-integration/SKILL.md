@@ -10,12 +10,13 @@ description: >
   `@AdminResource`, `AdminController`, `adminSource`, `BetterAuthProvider`,
   `ModernAdminStaticUiModule`, `setupPrismaSystem`, `MaRole`,
   `rolesResourceId`, the `ma_*` schema fragment, custom UI components,
-  `modern-admin setup-ui`, or scaffolding `bun create @modern-admin`.
+  `modern-admin setup-ui`, `mediaGenerationFeature`, `RetentionModule`,
+  `createRedisCacheProvider`, or scaffolding `bun create @modern-admin`.
 license: MIT
 compatibility: Modern Admin (@modern-admin/*) 0.x
 metadata:
   author: modern-admin
-  version: "2.1.0"
+  version: "2.2.0"
 allowed-tools: Bash Read Write Edit Glob Grep
 ---
 
@@ -42,15 +43,16 @@ rules so you don't re-discover them.
 
 ## When to use Modern Admin
 
-Use it for CRUD-over-Postgres admin panels (Prisma 7 / Drizzle 0.45) with
-role-gated actions, search, filters, uploads, audit log, revisions, webhooks,
-AI assistant. **Don't** use it for public UI, non-relational stores, or
+Use it for CRUD-over-Postgres admin panels (NestJS 12, Prisma 7 / Drizzle
+0.45, Bun 1.4, TypeScript 7) with role-gated actions, search, filters,
+uploads, audit log, revisions, webhooks, AI assistant, and media generation.
+**Don't** use it for public UI, non-relational stores, or
 when admin shouldn't share a DB with main app (use it as a separate service
 against a replica instead).
 
 ## Deployment model — default to standalone
 
-Recommended layout: separate NestJS 11 service against the same Postgres.
+Recommended layout: separate NestJS 12 service against the same Postgres.
 Scaffold with `bun create @modern-admin admin-service` — **no registry token
 required**. The scaffolder and all open-core `@modern-admin/*` packages are
 public on npm, so a missing `MODERN_ADMIN_TOKEN`/`NPM_TOKEN` is never a
@@ -110,8 +112,10 @@ overrides (avoid `TS2416`), and the `guard:` vs `isAccessible:` distinction.
 3. **`ModernAdminStaticUiModule.forRoot({ path: '/admin', ... })` is
    REQUIRED** to serve the SPA + handle deep-link refreshes. Without it
    `/admin` and every refresh 404s.
-4. **`RedisCacheProvider({ client, subscriber })` — pass clients, not URLs.**
-   ioredis can't multiplex pub/sub on a command connection.
+4. **Use `createRedisCacheProvider({ url })` for URL-based setup, or pass a
+   Redis client to `new RedisCacheProvider({ client, subscriber? })`.** The
+   direct constructor has no `url` option; it can duplicate a capable client
+   automatically. `RedisRealtimeBus` accepts one `client` and duplicates it.
 5. **Keep `app.use(<basePath>, ...)`, `betterAuth({ basePath })`, and
    `runtimeConfig.authBasePath` in lockstep.** A mismatch surfaces as
    `POST /api/auth/sign-in/email 404` on login.
@@ -134,7 +138,8 @@ Full details + code examples: `references/auth-and-infra.md`.
   `actions:` forbidden, read-only via roles, base-class signature, true
   invariants, sealed-invariant property `isAccessible`, `guard:` vs permissions.
 - `./references/actions-and-plugins.md` — §7 built-in actions and when to
-  override, §8 plugin/feature selection guide, §10 hooks vs actions vs handlers.
+  override, §8 plugin/feature/media-generation selection, retention, §10 hooks
+  vs actions vs handlers.
 - `./references/custom-ui.md` — §9 `modern-admin setup-ui`, component
   registration, `@modern-admin/ui` primitives, i18n, Tailwind 4 rules.
 - `./references/auth-and-infra.md` — §11 a–f: `BetterAuthProvider` wiring,

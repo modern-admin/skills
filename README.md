@@ -38,7 +38,8 @@ Non-interactive, single-skill, or pinned-to-version install:
 
 ```sh
 npx skills add modern-admin/skills --skill modern-admin-integration --yes
-npx skills add modern-admin/skills#v2.1.0
+npx skills add modern-admin/skills --skill modern-admin-upload-adapters --yes
+npx skills add modern-admin/skills#v2.2.0
 ```
 
 Claude Code users can also install via the plugin mechanism:
@@ -51,7 +52,8 @@ Claude Code users can also install via the plugin mechanism:
 
 | Skill | What it covers |
 |-------|----------------|
-| [`modern-admin-integration`](./skills/modern-admin-integration/SKILL.md) | Wiring `ModernAdminModule.forRoot`, adding resources, Better Auth + Prisma + Redis setup, scaffolding custom components with `modern-admin setup-ui`, declaring `@Action`/`@Before`/`@After` hooks, role permissions via `MaRole.permissions`, the 14 `Ma*` Prisma models, and auth/SPA troubleshooting. |
+| [`modern-admin-integration`](./skills/modern-admin-integration/SKILL.md) | Wiring `ModernAdminModule.forRoot`, adding resources, Better Auth + Prisma + Redis, media generation and retention, custom UI, actions/hooks, role permissions, the 14 `Ma*` Prisma models, and auth/SPA troubleshooting. |
+| [`modern-admin-upload-adapters`](./skills/modern-admin-upload-adapters/SKILL.md) | Connecting Local, S3-compatible, or custom `IUploadProvider` storage; mounting REST/GraphQL upload transports; configuring single/multi-file and JSON-by-key fields; and handling limits, cleanup, security, previews, and deployment constraints. |
 
 ## Contributing
 

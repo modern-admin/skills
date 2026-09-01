@@ -45,11 +45,13 @@ when paginating large lists.
 ## 14. Cache and realtime
 
 - Default `NoopCacheProvider` is fine for single-replica deployments.
-- For multi-replica: pass
-  `cache: new RedisCacheProvider({ client, subscriber })` and
-  `realtime: new RedisRealtimeBus({ client })`. The cache provider uses its
-  dedicated subscriber for cross-instance tag invalidation; the realtime bus
-  duplicates its client for browser-facing mutation fan-out.
+- For multi-replica, prefer
+  `cache: createRedisCacheProvider({ url: process.env.REDIS_URL })` and
+  `realtime: new RedisRealtimeBus({ client })`. The cache factory creates
+  command + subscriber clients; the realtime bus duplicates its client for
+  browser-facing mutation fan-out. When constructing `RedisCacheProvider`
+  directly, pass `client` and optionally `subscriber`; the client may provide
+  `duplicate()` instead.
 - The admin frontend subscribes to the realtime channel and live-
   refreshes list/show pages on remote edits — no code from the agent
   required, just wire the bus.

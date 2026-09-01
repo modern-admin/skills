@@ -115,8 +115,8 @@ interface ProductRow {
     { resourceId: 'orderItems', foreignKey: 'productId' },
   ],
   properties: {
-    id:        { isVisible: { edit: false } },
-    updatedAt: { isVisible: { edit: false } },
+    id:        { isVisible: { new: false, edit: false } },
+    updatedAt: { isVisible: { new: false, edit: false } },
   },
 })
 export class ProductsAdminController extends AdminController<ProductRow> {
@@ -261,8 +261,8 @@ column type is ambiguous.
 | Many-to-many through join table         | `m2m`           | Requires `@modern-admin/feature-m2m` |
 | Free-form JSON, known keys              | `json` + `keyValueFields` | Friendly per-key editor |
 | Free-form JSON, unknown keys            | `json`          | Raw JSON editor |
-| File upload (single)                    | `file`          | Requires `@modern-admin/feature-upload` |
-| Multiple files                          | `file` + `isArray: true` | Same plugin |
+| File upload (single)                    | `file`          | Use `uploadFeature`; do not set only the type |
+| Multiple files                          | `file` + `isArray: true` | Configure through `uploadFeature` and an array-capable DB field |
 | Phone number                            | `phone`         | International phone input |
 | Color picker                            | `color`         | Hex color swatch |
 | Password (hash stored)                  | `password`      | Hidden by default; use `feature-password` |
@@ -295,9 +295,13 @@ when leaks would be sensitive):
 - Long text fields, descriptions, blobs of JSON, attached files
   metadata — they explode the list table width.
 
-**Hide from edit** (`isVisible: { edit: false }`):
+**Hide from create and edit** (`isVisible: { new: false, edit: false }`):
 - Server-computed fields: `id`, `createdAt`, `updatedAt`, derived
   totals, denormalised counters.
+
+`new` visibility falls back to `edit` when omitted. Set both explicitly when
+documenting an invariant, and use `newProperties` when the creation form needs
+a whitelist/order different from `editProperties`.
 
 **Defaults already provided** by `BaseProperty.isVisible()`:
 - Anything matching `/password/i` is hidden by default.

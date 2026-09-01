@@ -37,13 +37,25 @@ Built-in catalog:
 | `@modern-admin/feature-m2m`      | local          | Tags-style join table between two resources. |
 | `@modern-admin/feature-password` | local          | Login-credential resource where the DB stores a hash. |
 | `@modern-admin/feature-history`  | local + global | Need per-row revisions and a "history" tab on show. Use **global** if every resource should be tracked. |
+| `@modern-admin/feature-media-generation` | local | Generate image/video/music into an upload-enabled property. Pair with a global `mediaGeneration.provider`. |
 | `@modern-admin-pro/feature-logging` (Pro) | local + global | Audit log of every action (who-did-what-when). Almost always wire globally with `actionLoggingPlugin`. |
 | `@modern-admin-pro/feature-webhooks` (Pro) | global         | Outbound webhooks on create/edit/delete events. |
 | `@modern-admin-pro/feature-ai-fill` (Pro)  | per-resource   | Add an AI "fill from photo / URL / text" button to the new/edit form. Configure model in env. |
 | `@modern-admin/feature-json-by-key` | local       | Single JSON column whose schema branches on a sibling field's value (e.g. `type === 'image' ⇒ {url,alt}`). |
 
-The base scaffold intentionally installs no feature package. Add only the
-features used by registered resources; its initial resource list is empty.
+The base scaffold wires an `ApiStockMediaGenerationProvider` from
+`@modern-admin/api-stock`, but generation appears on a resource only after
+attaching `mediaGenerationFeature(...)` and targeting a property already
+configured by `uploadFeature(...)`. Use `allowedMediaTypes`, `generateRoles`,
+and `manageRoles` on the global `mediaGeneration` config to constrain the
+provider. Keep API keys, webhook secrets, and monthly budgets server-side.
+
+`@modern-admin/queue` is infrastructure rather than a resource feature. Use
+`RetentionModule.forRoot({ history, auditLog })` with `keepDays` and/or
+`keepLast` when persisted system history/log tables need scheduled retention;
+pass the matching `setupPrismaSystem(...)` stores and register
+`QueueModule.forRoot({ connection })` once in the root module. A target with no
+bound is inert; omit it unless configuration is intentionally supplied later.
 
 All open-core `@modern-admin/*` packages (including every non-Pro feature
 above) are public on npm and install with **no registry token**. Only the

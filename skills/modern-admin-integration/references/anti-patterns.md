@@ -8,8 +8,10 @@
 - Do not call `prisma.client.$transaction` from inside an action
   handler unless you also call `BaseRecord.errors` accounting — the
   framework's error mapper expects flat `params` with dotted paths.
-- Do not store an arbitrary file on local disk in production — use
-  `S3UploadProvider` (signed URLs supported via `signed: true`).
+- Do not store arbitrary files on ephemeral local disk in production. Use
+  durable object storage. The current built-in renderer cannot regenerate a
+  signed URL for a persisted key after reload, so use a stable CDN URL or a
+  host custom protected resolver/component for private objects.
 - Do not run `prisma migrate dev` against a shared production
   database from a developer laptop. Migrations run from CI only.
 - Do not set `isVisible: false` and assume the data is hidden — it is
@@ -175,6 +177,11 @@ After integrating Modern Admin into a host project, confirm:
 - Built-in action handlers — `packages/core/src/actions/*.ts`.
 - Permissions logic — `packages/core/src/modern-admin.ts` (`getRolePermissions`, `invoke`).
 - Upload providers — `packages/feature-upload/src/providers/`.
+- Upload transport + lifecycle — use the separate
+  `modern-admin-upload-adapters` skill and read
+  `packages/feature-upload/src/{types,upload-feature,pending-registry}.ts`,
+  `packages/feature-upload/src/nest/`, and
+  `packages/feature-upload/src/graphql.ts`.
 - UI primitives — `packages/ui/src/components/`.
 - Full architectural overview —
   `https://docs.modernadminpro.com/docs/architecture`.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Modern Admin Upload Adapters"
+  short_description: "Connect file storage providers to Modern Admin"
+  default_prompt: "Use $modern-admin-upload-adapters to configure secure file uploads for this Modern Admin resource."
