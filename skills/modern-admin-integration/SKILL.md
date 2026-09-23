@@ -17,7 +17,7 @@ license: MIT
 compatibility: Modern Admin (@modern-admin/*) 0.10.x
 metadata:
   author: modern-admin
-  version: "2.2.0"
+  version: "2.2.1"
 allowed-tools: Bash Read Write Edit Glob Grep
 ---
 
@@ -41,6 +41,11 @@ rules so you don't re-discover them.
    See `references/conventions.md`.
 5. **Mobile-first.** Verify every new UI at ≤375px viewport.
 6. **Auto-discovery beats config.** Override only what diverges.
+7. **`id` is always filterable.** Every resource declares
+   `filterProperties` and `'id'` is its first entry — the framework hides the
+   id property from the `filter` view by default, so without the whitelist no
+   one can look a row up by primary key. See `references/resources.md`
+   checklist step 9.
 
 ## Current API baseline — Modern Admin 0.10
 
@@ -110,7 +115,7 @@ See `references/custom-ui.md`.
 
 See `references/resources.md` for the canonical Prisma source factory
 (including the **critical** relation-field-`type` rewrite for FK→reference
-resolution), the resource-creation 8-step checklist, and the property-type
+resolution), the resource-creation 9-step checklist, and the property-type
 selection matrix.
 
 ## NestJS-style permissions — `actions:` key is FORBIDDEN
@@ -188,6 +193,8 @@ Full details + code examples: `references/auth-and-infra.md`.
 - [ ] `bun run dev` (or `scripts/dev.sh start api-prisma web`) starts clean;
       `.dev-logs/` show no errors.
 - [ ] Seed admin can log in at `/admin` and sees every registered resource.
+- [ ] Every resource's Filters sheet offers an `Id` field (i.e. every
+      `filterProperties` array starts with `'id'`).
 - [ ] Sensitive columns (`password`, `apiKey`, …) absent from both JSON and UI.
 - [ ] Every destructive action has a `guard:` confirmation and is granted only
       to intended roles by `MaRole.permissions`; code-pinned `isAccessible` is

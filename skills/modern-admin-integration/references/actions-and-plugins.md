@@ -12,6 +12,10 @@
 | `bulkDelete` | Same as `delete`.                                                                                                                                        |
 | `search`     | Reference autocomplete uses this — extend when the searchable column is not the auto-detected one.                                                       |
 
+Whenever you write a `filterProperties` whitelist here, `'id'` comes first —
+the filter view hides the id property by default. See resources.md checklist
+step 9.
+
 For business-specific operations, **add a custom action** instead of
 overriding a built-in. Custom action types:
 

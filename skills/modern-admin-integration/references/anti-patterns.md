@@ -34,6 +34,11 @@
   workspace package for the repository's reference apps and is not published.
   Copy the small registry implementation into the host as shown in
   resources.md, then import only public `@modern-admin/*` packages.
+- **Do not ship a resource whose filters lack `id`.** The `filter` view
+  excludes the id property by default, so a missing `filterProperties` (or
+  one that does not start with `'id'`) leaves admins unable to find a row by
+  the id they got from a log or a ticket. `filterProperties: ['id', …]` on
+  every resource — resources.md checklist step 9.
 - **Do not forget `relatedResources`.** Every reverse relation
   (`Foo[]` or `Foo?` on the parent side) is a candidate for a tab on
   the show page; skip only after a deliberate decision.

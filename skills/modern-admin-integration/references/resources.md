@@ -133,7 +133,11 @@ interface ProductRow {
   navigation: { icon: "Package", group: "catalog" },
   titleProperty: "name",
   listProperties: ["name", "price", "stock", "published", "updatedAt"],
-  filterProperties: ["published"],
+  // `filterProperties` is a whitelist + order for the Filters sheet. Always
+  // lead with "id": the default filter view drops id (`isVisibleIn('filter')`
+  // is false for the id property), so without this the panel offers no way to
+  // look a row up by its primary key.
+  filterProperties: ["id", "published"],
   sort: { sortBy: "updatedAt", direction: "desc" },
   // Tabs on the show page — one entry per FK relation pointing AT this
   // resource. Inspect the Prisma model: every `Foo[]` or `Foo?` field
@@ -266,6 +270,25 @@ For each Prisma model you turn into a resource:
    with `isAccessible: false` on the relevant property/action. Do NOT
    use code-pinned `isAccessible` for ordinary role gating — see
    permissions.md §6a.
+9. **Declare `filterProperties` with `'id'` first.** Every resource gets an
+   explicit `filterProperties` whitelist and `'id'` is always its first
+   entry. The id property is invisible in the `filter` view by default
+   (`isVisibleIn('filter')` returns `property.isVisible() && !property.isId()`),
+   so a resource that omits the whitelist — or declares one without `id` —
+   offers no way to filter by primary key at all. Looking a row up by an id
+   copied from a log line, a webhook payload or a support ticket is the most
+   common admin task, so this is not optional. A uuid has no distinct values
+   to offer, so it renders as a free-text input and the applied filter lands
+   in the URL as `filters[id][operator]=co&filters[id][value]=…` — shareable
+   as a link.
+
+   ```ts
+   // ✅ id first, then the domain filters that matter
+   filterProperties: ["id", "status", "customerId", "createdAt"],
+
+   // ❌ no filterProperties at all → the Filters sheet has no Id field
+   // ❌ filterProperties: ['status'] → same, id is still unfilterable
+   ```
 
 ## Property type selection matrix
 
@@ -338,6 +361,9 @@ a whitelist/order different from `editProperties`.
 
 - Anything matching `/password/i` is hidden by default.
 - IDs are not editable by default (`isEditable() === false`).
+- IDs are **not filterable by default** either — the `filter` view excludes
+  the id property. That default is the one you always override: put `'id'`
+  first in `filterProperties` on every resource (checklist step 9).
 
 Do not "hide" by removing properties from `listProperties` only — that
 just changes the default column set; the field is still in the
