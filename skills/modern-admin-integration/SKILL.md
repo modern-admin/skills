@@ -11,13 +11,14 @@ description: >
   `ModernAdminStaticUiModule`, `publicConfig`, `metadataTranslations`,
   `setupPrismaSystem`, `MaRole`,
   `rolesResourceId`, the `ma_*` schema fragment, custom UI components,
-  `modern-admin setup-ui`, `mediaGenerationFeature`, `RetentionModule`,
+  `modern-admin setup-ui`, `relatedResources`, relation-path `filterProperties`,
+  `mediaGenerationFeature`, `RetentionModule`,
   `createRedisCacheProvider`, or scaffolding `bun create @modern-admin`.
 license: MIT
 compatibility: Modern Admin (@modern-admin/*) 0.10.x
 metadata:
   author: modern-admin
-  version: "2.2.1"
+  version: "2.2.2"
 allowed-tools: Bash Read Write Edit Glob Grep
 ---
 
@@ -118,6 +119,11 @@ See `references/resources.md` for the canonical Prisma source factory
 resolution), the resource-creation 9-step checklist, and the property-type
 selection matrix.
 
+For virtual related tables or filters through several relationships, read
+the **Virtual related tables and relation-path filters** section in that
+reference. The chained-path API is unreleased; verify installed framework
+support before using it in a host.
+
 ## NestJS-style permissions — `actions:` key is FORBIDDEN
 
 > The #1 mistake AI agents make.
@@ -168,8 +174,9 @@ Full details + code examples: `references/auth-and-infra.md`.
 - `./references/deployment.md` — §2 standalone deploy, §2.5 reusing existing
   Prisma schema, the 14 `Ma*` models, anti-pattern of duplicated generators.
 - `./references/resources.md` — §3 the three-pieces recipe, source registry,
-  resource controller, 8-step per-resource checklist, §4 property-type matrix,
-  §5 hide vs. expose (`isVisible` vs `isAccessible`).
+  resource controller, resource checklist, virtual related tables and
+  relation-path filters, §4 property-type matrix, §5 hide vs. expose
+  (`isVisible` vs `isAccessible`).
 - `./references/permissions.md` — §6 roles × actions, DB-driven vs code-pinned,
   `actions:` forbidden, read-only via roles, base-class signature, true
   invariants, global property redaction, `guard:` vs permissions.

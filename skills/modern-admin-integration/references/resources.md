@@ -205,6 +205,64 @@ Then restart the dev server (`scripts/dev.sh restart api-prisma`).
 Note: `bun --watch` does NOT pick up changes in symlinked workspace
 packages, so changes inside `packages/*` always need a restart.
 
+### Virtual related tables and relation-path filters
+
+**Availability:** Chained relation paths are unreleased. Check the host's
+installed framework implementation before applying them; the 0.10 baseline
+alone does not imply support.
+
+Use `relatedResources` to reuse an existing resource's list action as a
+show-page table. A scalar `foreignKey` path can follow several references:
+
+```ts
+// In the customers resource's @AdminResource options:
+relatedResources: [
+  { resourceId: "posts", foreignKey: "authorId" },
+  { resourceId: "comments", foreignKey: "authorId" },
+  {
+    resourceId: "comments",
+    foreignKey: "postId.authorId",
+    label: "common:commentsOnPosts",
+  },
+],
+```
+
+The third table contains comments on the customer's posts, regardless of
+who wrote the comments. `comments.postId` must reference `posts`, and
+`posts.authorId` must reference `customers` using the host's logical ids.
+Use scalar property names, not Prisma relation-field names. The table locks
+the path to the current record id with exact equality; filtering, pagination
+and export retain that lock. `showRelatedResources: false` hides the section.
+
+Expose fields through those references in the comments resource:
+
+```ts
+filterProperties: ["id", "postId", "postId.authorId", "postId.authorId.tier"],
+```
+
+Keep `id` first. The terminal property's type, reference picker and available
+values are inferred. These extra properties appear only in the filter view
+and cannot be sorted. Override filter metadata using the full path in
+`properties`; translate it using the same key in
+`runtimeConfig.metadataTranslations.<locale>.resources.comments.properties`.
+Translate distinct tabs of the same resource with
+`relatedResources["comments::postId.authorId"]`; `relatedResources.comments`
+is a fallback. Explicit tab labels also accept dictionary keys.
+
+REST and `admin.invoke()` accept structured criteria, for example
+`{ "postId.authorId.tier": { operator: "eq", value: "pro" } }` in
+`query.filters`. This API does not add dotted fields to GraphQL's typed
+`where` inputs. Conditions on the same reference are ANDed against the same
+related row; a missing relation never matches, even for terminal `empty`.
+
+Every intermediate list goes through `invoke()` with the same principal,
+list permissions, property access checks and row-scoping hooks. Relation
+reads bypass action/REST response caches. There are limits of five scalar
+reference hops and 10,000 matching intermediate records per hop; broader
+matches fail validation rather than returning a partial table. Traverse the
+child/junction resource's scalar FKs for reverse-array or m2m relationships.
+Keep these checks intact when adding custom handlers or hooks.
+
 ### Resource-creation checklist (apply to EVERY new resource)
 
 For each Prisma model you turn into a resource:
